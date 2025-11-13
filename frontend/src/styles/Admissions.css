@@ -1093,3 +1093,85 @@
     gap: 12px; /* Tighter grid on small screens */
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Back Button & Button Groups */
+.admission-btn-group {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+  align-items: center;
+}
+
+.back-btn {
+  background: linear-gradient(135deg, #6b7280, #4b5563); /* Gray secondary, matches cancel theme */
+  color: white;
+  flex: 0 0 auto; /* Don't grow, fixed size */
+  min-width: 100px; /* Consistent with next btn on mobile */
+}
+
+.back-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3); /* Gray shadow */
+}
+
+.back-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsive: Stack buttons on small screens */
+@media (max-width: 768px) {
+  .admission-btn-group {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .back-btn,
+  .admission-primary-btn {
+    width: 100%;
+  }
+}

@@ -101,6 +101,19 @@ const Admissions = () => {
 
   const AADHAAR_ASPECT_RATIO = 85.6 / 53.98; // Approx 1.586 for Aadhaar card
 
+  // Aadhaar formatting functions
+  const formatAadhaar = (value) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length <= 4) return digits;
+    if (digits.length <= 8) return digits.slice(0, 4) + ' ' + digits.slice(4);
+    return digits.slice(0, 4) + ' ' + digits.slice(4, 8) + ' ' + digits.slice(8);
+  };
+
+  const formatDisplayAadhaar = (num) => {
+    if (!num) return '';
+    return num.replace(/(\d{4})/g, '$1 ').trim();
+  };
+
   const getRoleDisplay = (role) => {
     switch (role) {
       case 'student': return 'Student Aadhaar';
@@ -133,18 +146,63 @@ const Admissions = () => {
     return baseFields;
   };
 
+  // Validate edit values for a role
+  const validateEditValues = (role, values) => {
+    const errors = [];
+    const aadhaarKey = 'aadhaar_number';
+    const nameKey = 'name';
+    const aadhaarValue = values[aadhaarKey];
+    const nameValue = values[nameKey];
+    const cleanAadhaar = aadhaarValue.replace(/\s/g, '');
+
+    // Name: Required, non-empty after trim
+    if (!nameValue || nameValue.trim() === '') {
+      errors.push('Name is required.');
+    }
+
+    // Aadhaar: Exactly 12 digits (after stripping spaces)
+    if (!cleanAadhaar || !/^\d{12}$/.test(cleanAadhaar)) {
+      errors.push('Aadhaar number must be exactly 12 digits.');
+    }
+
+    // DOB: Valid date (browser handles, but check non-empty)
+    if (!values.dob) {
+      errors.push('Date of Birth is required.');
+    }
+
+    // Gender: One of the options
+    if (!['Male', 'Female', 'Other'].includes(values.gender)) {
+      errors.push('Please select a valid gender.');
+    }
+
+    return errors;
+  };
+
   // Toggle edit mode for a role
   const toggleEditMode = (role) => {
     const isEditing = editModes[role];
     if (isEditing) {
-      // Save changes
+      // Validate before saving
+      const tempValues = editValues[role];
+      const validationErrors = validateEditValues(role, tempValues);
+      if (validationErrors.length > 0) {
+        setError(validationErrors.join(' '));
+        return; // Don't save/exit if invalid
+      }
+
+      // Save changes (clean Aadhaar before storing)
       const fields = getFieldsForRole(role);
       const updates = {};
       fields.forEach(field => {
         const editKey = role === 'father' || role === 'mother' ? field.replace(`${role}_`, '') : field;
-        updates[field] = editValues[role][editKey];
+        let val = tempValues[editKey];
+        if (editKey === 'aadhaar_number') {
+          val = val.replace(/\s/g, ''); // Strip spaces for storage
+        }
+        updates[field] = val;
       });
       setFormData(prev => ({ ...prev, ...updates }));
+      setError(''); // Clear any previous errors
       setEditModes(prev => ({ ...prev, [role]: false }));
     } else {
       // Load current values into temp edit state
@@ -161,10 +219,16 @@ const Admissions = () => {
 
   // Handle edit input change
   const handleEditChange = (role, field, value) => {
+    let formattedValue = value;
+    if (field === 'aadhaar_number') {
+      formattedValue = formatAadhaar(value);
+    }
     setEditValues(prev => ({
       ...prev,
-      [role]: { ...prev[role], [field]: value }
+      [role]: { ...prev[role], [field]: formattedValue }
     }));
+    // Clear error on change
+    if (error.includes(field)) setError('');
   };
 
   useEffect(() => {
@@ -593,6 +657,12 @@ const Admissions = () => {
     }
   };
 
+  // Back navigation
+  const handleBackStep = () => {
+    setCurrentStep(prev => Math.max(1, prev - 1));
+    setError(''); // Clear errors on back
+  };
+
   const handleStudentPhotoUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -688,34 +758,59 @@ const Admissions = () => {
             const displayField = field.replace(rolePrefix, '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
             const value = formData[field];
             const editKey = field.replace(rolePrefix, '');
+            const isAadhaar = editKey === 'aadhaar_number';
+            const isDob = editKey === 'dob';
+            const isGender = editKey === 'gender';
+            const displayValue = isAadhaar ? formatDisplayAadhaar(value) : value;
             return (
               <div key={field} className="aadhaar-preview-item">
                 <label>{displayField}</label>
                 {isEditing ? (
-                  <input
-                    type={field.includes('dob') ? 'date' : field.includes('gender') ? 'select' : 'text'}
-                    value={editValues[role][editKey] || ''}
-                    onChange={(e) => handleEditChange(role, editKey, e.target.value)}
-                    className="edit-input"
-                    list={field.includes('gender') ? 'gender-options' : undefined}
-                  />
+                  isGender ? (
+                    <select
+                      value={editValues[role][editKey] || ''}
+                      onChange={(e) => handleEditChange(role, editKey, e.target.value)}
+                      className="edit-input"
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  ) : (
+                    <input
+                      type={isDob ? 'date' : isAadhaar ? 'text' : 'text'}
+                      value={editValues[role][editKey] || ''}
+                      onChange={(e) => handleEditChange(role, editKey, e.target.value)}
+                      className="edit-input"
+                      pattern={isAadhaar ? "\\d{4} \\d{4} \\d{4}" : undefined}
+                      maxLength={isAadhaar ? 14 : undefined}
+                      placeholder={isAadhaar ? "e.g., 4828 8429 4931" : undefined}
+                    />
+                  )
                 ) : (
-                  <span>{value || '-'}</span>
+                  <span>{displayValue || '-'}</span>
                 )}
               </div>
             );
           })}
-          {isEditing && (
-            <datalist id="gender-options">
-              <option value="Male" />
-              <option value="Female" />
-              <option value="Other" />
-            </datalist>
-          )}
         </div>
       </div>
     );
   };
+
+  // Render back button for steps > 1
+  const renderBackButton = () => (
+    currentStep > 1 && (
+      <button 
+        onClick={handleBackStep} 
+        className="admission-btn back-btn"
+        disabled={loading}
+      >
+        ← Back
+      </button>
+    )
+  );
 
   return (
     <div className="admission-portal-container">
@@ -866,9 +961,12 @@ const Admissions = () => {
 
               {error && <div className="admission-message admission-error-message">{error}</div>}
 
-              <button type="button" onClick={handleNextStep2} className="admission-btn admission-primary-btn admission-next-btn" disabled={loading}>
-                Continue to Father's Aadhaar
-              </button>
+              <div className="admission-btn-group">
+                {renderBackButton()}
+                <button type="button" onClick={handleNextStep2} className="admission-btn admission-primary-btn admission-next-btn" disabled={loading}>
+                  Continue to Father's Aadhaar
+                </button>
+              </div>
             </div>
           </form>
         )}
@@ -928,9 +1026,12 @@ const Admissions = () => {
               {error && <div className="admission-message admission-error-message">{error}</div>}
               {successMessage && <div className="admission-message admission-success-message">{successMessage}</div>}
 
-              <button onClick={handleNextStep3} className="admission-btn admission-primary-btn admission-next-btn" disabled={loading || !fatherExtractionSuccess}>
-                Continue to Mother's Aadhaar
-              </button>
+              <div className="admission-btn-group">
+                {renderBackButton()}
+                <button onClick={handleNextStep3} className="admission-btn admission-primary-btn admission-next-btn" disabled={loading || !fatherExtractionSuccess}>
+                  Continue to Mother's Aadhaar
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -990,9 +1091,12 @@ const Admissions = () => {
               {error && <div className="admission-message admission-error-message">{error}</div>}
               {successMessage && <div className="admission-message admission-success-message">{successMessage}</div>}
 
-              <button onClick={handleNextStep4} className="admission-btn admission-primary-btn admission-next-btn" disabled={loading || !motherExtractionSuccess}>
-                Continue to Leaving Certificate
-              </button>
+              <div className="admission-btn-group">
+                {renderBackButton()}
+                <button onClick={handleNextStep4} className="admission-btn admission-primary-btn admission-next-btn" disabled={loading || !motherExtractionSuccess}>
+                  Continue to Leaving Certificate
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1071,9 +1175,12 @@ const Admissions = () => {
               {error && <div className="admission-message admission-error-message">{error}</div>}
               {successMessage && <div className="admission-message admission-success-message">{successMessage}</div>}
 
-              <button onClick={handleLeavingCertSubmit} className="admission-btn admission-primary-btn admission-submit-btn" disabled={loading || !leavingCertExtractionSuccess}>
-                {loading ? 'Processing...' : 'Submit & Generate ID Card'}
-              </button>
+              <div className="admission-btn-group">
+                {renderBackButton()}
+                <button onClick={handleLeavingCertSubmit} className="admission-btn admission-primary-btn admission-submit-btn" disabled={loading || !leavingCertExtractionSuccess}>
+                  {loading ? 'Processing...' : 'Submit & Generate ID Card'}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1112,7 +1219,7 @@ const Admissions = () => {
                       <div className="student-id-info-row"><span className="student-id-info-label">Name:</span><span className="student-id-info-value">{formData.name}</span></div>
                       <div className="student-id-info-row"><span className="student-id-info-label">DOB:</span><span className="student-id-info-value">{formData.dob}</span></div>
                       <div className="student-id-info-row"><span className="student-id-info-label">Gender:</span><span className="student-id-info-value">{formData.gender}</span></div>
-                      <div className="student-id-info-row"><span className="student-id-info-label">Aadhaar:</span><span className="student-id-info-value">{formData.aadhaar_number}</span></div>
+                      <div className="student-id-info-row"><span className="student-id-info-label">Aadhaar:</span><span className="student-id-info-value">{formatDisplayAadhaar(formData.aadhaar_number)}</span></div>
                       <div className="student-id-info-row"><span className="student-id-info-label">Father:</span><span className="student-id-info-value">{formData.father_name}</span></div>
                       <div className="student-id-info-row"><span className="student-id-info-label">Prev. School:</span><span className="student-id-info-value">{formData.school_name}</span></div>
                       <div className="student-id-info-row"><span className="student-id-info-label">Last Class:</span><span className="student-id-info-value">{formData.last_class_attended}</span></div>
@@ -1136,9 +1243,12 @@ const Admissions = () => {
                 </div>
               </div>
 
-              <button onClick={downloadIdCard} className="admission-btn admission-download-btn" disabled={loading}>
-                Download ID Card (PDF)
-              </button>
+              <div className="admission-btn-group">
+                {renderBackButton()}
+                <button onClick={downloadIdCard} className="admission-btn admission-download-btn" disabled={loading}>
+                  Download ID Card (PDF)
+                </button>
+              </div>
             </div>
           </div>
         )}
