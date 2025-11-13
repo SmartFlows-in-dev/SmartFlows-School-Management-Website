@@ -75,7 +75,7 @@ const Admissions = () => {
   const overlayRef = useRef(null);
   // Base backend URL (switches local/prod automatically)
   const isDev = import.meta.env.DEV; // Vite's built-in dev mode detector
-  const BASE_BACKEND_URL = isDev ? 'http://localhost:5000' : 'https://school-management-system-25yi.onrender.com';
+  const BASE_BACKEND_URL = isDev ? 'http://localhost:5000' : 'https://smartflows-school-management-website.onrender.com';
 
   // All URLs now conditional
   const API_URL = `${BASE_BACKEND_URL}/api/admissions/extract-aadhaar`;

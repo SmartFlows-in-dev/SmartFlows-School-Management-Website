@@ -46,7 +46,7 @@ const AdminDashboard = () => {
       }
       try {
         console.log('Fetching admin dashboard...');
-        const response = await fetch('https://school-management-system-25yi.onrender.com/api/admin/dashboard', {
+        const response = await fetch('https://smartflows-school-management-website.onrender.com/api/admin/dashboard', {
 //  const response = await fetch(' http://localhost:5000/api/admin/dashboard', {
          
           headers: { 'Authorization': `Bearer ${token}` }
@@ -79,7 +79,7 @@ const AdminDashboard = () => {
     setCreateError('');
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch('https://school-management-system-25yi.onrender.com/api/admin/create-user', {
+      const response = await fetch('https://smartflows-school-management-website.onrender.com/api/admin/create-user', {
           //  const response = await fetch('http://localhost:5000/api/admin/create-user', {
         method: 'POST',
         headers: { 

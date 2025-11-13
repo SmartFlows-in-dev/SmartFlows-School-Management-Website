@@ -20,7 +20,7 @@ const TeacherDashboard = () => {
       }
       try {
         console.log('Fetching teacher dashboard with token...');
-        const response = await fetch('https://school-management-system-25yi.onrender.com/api/teacher/dashboard', {
+        const response = await fetch('https://smartflows-school-management-website.onrender.com/api/teacher/dashboard', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const result = await response.json();

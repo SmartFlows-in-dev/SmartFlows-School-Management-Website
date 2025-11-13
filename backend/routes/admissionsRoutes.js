@@ -10,10 +10,10 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ---------------------------------------------------------------------
-// CONFIG – change only if you move the OCR server
+// CONFIG – loaded from env vars (set in .env, with fallbacks for dev)
 // ---------------------------------------------------------------------
-const AADHAAR_OCR_URL = 'http://3.110.94.123:8000/api/v1/extract-aadhaar';
-const LEAVING_CERT_OCR_URL = 'http://3.110.94.123:5678/api/v1/extract_certificate_data';
+const AADHAAR_OCR_URL = process.env.AADHAAR_OCR_URL || 'http://smartflows-aadhar-extraction-model-production.up.railway.app/extract';
+const LEAVING_CERT_OCR_URL = process.env.LEAVING_CERT_OCR_URL || 'http://3.110.94.123:5678/api/v1/extract_certificate_data';
 const OCR_TIMEOUT_MS = 30_000; // Increased to 30 seconds for slower OCR processing
 
 // ---------------------------------------------------------------------
@@ -21,7 +21,7 @@ const OCR_TIMEOUT_MS = 30_000; // Increased to 30 seconds for slower OCR process
 // ---------------------------------------------------------------------
 async function isOcrHealthy(url) {
   try {
-    await axios.get(`${url.replace(/\/api.*$/, '')}/health`, { timeout: 3000 });
+    await axios.get(`${url.replace(/\/api.*$/, '').replace(/\/extract$/, '')}/health`, { timeout: 3000 });
     console.log(`OCR Health Check: ${url} is healthy`);
     return true;
   } catch (err) {
@@ -70,7 +70,7 @@ const MOCK_LEAVING_CERT_RESPONSE = {
 };
 
 // ---------------------------------------------------------------------
-// POST /api/admissions/extract-aadhaar   (unchanged, just using axios)
+// POST /api/admissions/extract-aadhaar   (updated for new API endpoint/format)
 // ---------------------------------------------------------------------
 router.post('/extract-aadhaar', upload.single('file'), async (req, res) => {
   if (!req.file) {
@@ -95,7 +95,7 @@ router.post('/extract-aadhaar', upload.single('file'), async (req, res) => {
       timeout: OCR_TIMEOUT_MS,
     });
 
-    // The Aadhaar service returns { success: true, data: { … } }
+    // The new Aadhaar service returns { success: true, data: { AADHAR_NUMBER: "", ADDRESS: "", DOB: "", GENDER: "", NAME: "" }, detections: [], processing_time: 1.23 }
     console.log('Aadhaar OCR successful, extracted data:', JSON.stringify(resp.data.data, null, 2));
     res.json(resp.data);
   } catch (err) {
