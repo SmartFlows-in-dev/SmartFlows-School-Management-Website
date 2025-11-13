@@ -13,7 +13,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // CONFIG – hardcoded for simplicity (no env fallback)
 // ---------------------------------------------------------------------
 const AADHAAR_OCR_URL = 'https://smartflows-aadhar-extraction-model-production.up.railway.app/extract';
-const LEAVING_CERT_OCR_URL = 'http://3.110.94.123:5678/api/v1/extract_certificate_data';
+const LEAVING_CERT_OCR_URL = 'https://smartflows-school-leaving-certificate-t84k.onrender.com/api/v1/extract_certificate_data';
 const OCR_TIMEOUT_MS = 30_000; // Increased to 30 seconds for slower OCR processing
 
 // ---------------------------------------------------------------------
