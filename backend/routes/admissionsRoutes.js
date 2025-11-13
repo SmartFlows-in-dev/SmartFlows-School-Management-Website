@@ -10,9 +10,9 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ---------------------------------------------------------------------
-// CONFIG – change only if you move the OCR server
+// CONFIG – hardcoded for simplicity (no env fallback)
 // ---------------------------------------------------------------------
-const AADHAAR_OCR_URL = 'https://smartflows-aadhar-extraction-model-production.up.railway.app/extract'
+const AADHAAR_OCR_URL = 'https://smartflows-aadhar-extraction-model-production.up.railway.app/extract';
 const LEAVING_CERT_OCR_URL = 'http://3.110.94.123:5678/api/v1/extract_certificate_data';
 const OCR_TIMEOUT_MS = 30_000; // Increased to 30 seconds for slower OCR processing
 
@@ -21,7 +21,8 @@ const OCR_TIMEOUT_MS = 30_000; // Increased to 30 seconds for slower OCR process
 // ---------------------------------------------------------------------
 async function isOcrHealthy(url) {
   try {
-    await axios.get(`${url.replace(/\/api.*$/, '')}/health`, { timeout: 3000 });
+    const baseUrl = url.replace(/\/extract$/, '').replace(/\/api.*$/, ''); // Strip /extract or /api/v1/... to get root
+    await axios.get(`${baseUrl}/health`, { timeout: 3000 });
     console.log(`OCR Health Check: ${url} is healthy`);
     return true;
   } catch (err) {
@@ -70,7 +71,7 @@ const MOCK_LEAVING_CERT_RESPONSE = {
 };
 
 // ---------------------------------------------------------------------
-// POST /api/admissions/extract-aadhaar   (unchanged, just using axios)
+// POST /api/admissions/extract-aadhaar   (updated for new API endpoint/format)
 // ---------------------------------------------------------------------
 router.post('/extract-aadhaar', upload.single('file'), async (req, res) => {
   if (!req.file) {
@@ -81,7 +82,17 @@ router.post('/extract-aadhaar', upload.single('file'), async (req, res) => {
     });
   }
 
-  console.log(`Aadhaar Extraction: Processing file "${req.file.originalname}" (size: ${req.file.size} bytes)`);
+  console.log(`Aadhaar Extraction: Processing file "${req.file.originalname}" (size: ${req.file.size} bytes, mimetype: ${req.file.mimetype})`);
+
+  // Basic validation for supported formats (JPG, JPEG, PNG)
+  const supportedMimes = ['image/jpeg', 'image/jpg', 'image/png'];
+  if (!supportedMimes.includes(req.file.mimetype.toLowerCase())) {
+    console.log('Aadhaar Extraction: Unsupported file format');
+    return res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_FORMAT', message: 'Only JPG, JPEG, and PNG formats are supported' },
+    });
+  }
 
   const form = new FormData();
   form.append('file', req.file.buffer, {
@@ -95,12 +106,44 @@ router.post('/extract-aadhaar', upload.single('file'), async (req, res) => {
       timeout: OCR_TIMEOUT_MS,
     });
 
-    // The Aadhaar service returns { success: true, data: { … } }
-    console.log('Aadhaar OCR successful, extracted data:', JSON.stringify(resp.data.data, null, 2));
-    res.json(resp.data);
+    // New API returns { success: true, data: { AADHAR_NUMBER: "...", NAME: "...", GENDER: "...", DOB: "...", ADDRESS: "..." }, detections: [...], processing_time: 1.23 }
+    if (resp.data.success) {
+      // Map uppercase keys to lowercase for frontend compatibility
+      const mappedData = {
+        success: true,
+        data: {
+          aadhaar_number: resp.data.data.AADHAR_NUMBER || '',
+          name: resp.data.data.NAME || '',
+          gender: resp.data.data.GENDER || '',
+          dob: resp.data.data.DOB || '',
+          address: resp.data.data.ADDRESS || '', // Optional, if frontend uses it later
+        },
+        // Optionally forward detections/processing_time if needed
+        detections: resp.data.detections,
+        processing_time: resp.data.processing_time,
+      };
+      console.log('Aadhaar OCR successful, mapped data:', JSON.stringify(mappedData.data, null, 2));
+      res.json(mappedData);
+    } else {
+      // Forward OCR's non-success response (e.g., validation error)
+      console.log('Aadhaar OCR returned non-success:', JSON.stringify(resp.data, null, 2));
+      res.status(400).json(resp.data);
+    }
   } catch (err) {
     console.error('Aadhaar OCR error:', err.message);
-    console.error('Full Aadhaar error details:', err.response?.data || err);
+    console.error('Request config:', { url: AADHAAR_OCR_URL });
+    console.error('Response status:', err.response?.status);
+    console.error('Response data:', err.response?.data);
+    console.error('Full error:', err);
+
+    // If it's a 4xx from OCR, forward it; else 500
+    if (err.response && err.response.status >= 400 && err.response.status < 500) {
+      return res.status(err.response.status).json({
+        success: false,
+        ...err.response.data,
+      });
+    }
+
     res.status(500).json({
       success: false,
       error: { code: 'EXTRACTION_FAILED', message: err.message },
@@ -177,12 +220,12 @@ router.post('/extract-leaving-certificate', upload.single('file'), async (req, r
 });
 
 // ---------------------------------------------------------------------
-// POST /api/admissions/submit   (unchanged – just for completeness)
+// POST /api/admissions/submit-to-sheet   (updated to match frontend URL)
 // ---------------------------------------------------------------------
-router.post('/submit', express.json(), (req, res) => {
+router.post('/submit-to-sheet', express.json(), (req, res) => {
   const studentData = req.body;
   console.log('Submitted Student Data:', JSON.stringify(studentData, null, 2));
-  // TODO: save to Firebase / DB
+  // TODO: save to Firebase / DB / Google Sheet
   res.json({ success: true, message: 'Data saved successfully' });
 });
 

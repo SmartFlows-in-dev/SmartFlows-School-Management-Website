@@ -1012,3 +1012,84 @@
   }
 }
 
+
+
+
+
+
+
+/* Edit Feature Styles */
+.aadhaar-preview-header {
+  display: flex; /* New: Flex for button alignment */
+  justify-content: space-between;
+  align-items: center; /* Center vertically with h4 */
+}
+
+.edit-btn {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed); /* Matches primary gradient */
+  color: white;
+  border: none;
+  padding: 8px 16px; /* Compact: smaller than main btns */
+  border-radius: 6px; /* Softer radius */
+  font-size: 0.85rem; /* Smaller text */
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2); /* Subtle shadow */
+}
+
+.edit-btn:hover:not(:disabled) {
+  transform: translateY(-1px); /* Subtle lift like primary btn */
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.edit-btn:disabled {
+  background: #9ca3af; /* Matches disabled primary */
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.edit-input {
+  width: 100%; /* Full-width in grid item */
+  padding: 8px 12px; /* Slightly smaller padding for preview grid */
+  border: 2px solid #e2e8f0; /* Matches form inputs */
+  border-radius: 6px; /* Consistent with theme */
+  font-size: 0.95rem; /* Matches preview span size */
+  background: white;
+  color: #1e293b; /* Dark text for readability */
+  font-family: inherit;
+  transition: all 0.3s ease;
+  box-sizing: border-box; /* Include padding in width */
+}
+
+.edit-input:focus {
+  outline: none;
+  border-color: #4f46e5; /* Primary focus color */
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); /* Glow like form inputs */
+}
+
+.edit-input::placeholder {
+  color: #9ca3af; /* Matches form placeholders */
+}
+
+/* Optional: Edit mode header tweak for visual feedback */
+.aadhaar-preview-card:has(.edit-btn[data-editing="true"]) .aadhaar-preview-header {
+  background: linear-gradient(135deg, #10b981, #059669); /* Green tint when editing (add data-editing="true" to button in JSX if desired) */
+}
+
+/* Responsive: Ensure inputs/buttons work on mobile */
+@media (max-width: 768px) {
+  .edit-btn {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+  }
+  
+  .edit-input {
+    padding: 10px 14px; /* Slightly larger touch target on mobile */
+  }
+  
+  .aadhaar-preview-grid {
+    gap: 12px; /* Tighter grid on small screens */
+  }
+}

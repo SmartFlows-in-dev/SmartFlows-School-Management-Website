@@ -54,6 +54,20 @@ const Admissions = () => {
     other_remarks: ''
   });
 
+  // Edit modes for previews
+  const [editModes, setEditModes] = useState({
+    student: false,
+    father: false,
+    mother: false,
+  });
+
+  // Temp edit values
+  const [editValues, setEditValues] = useState({
+    student: { name: '', dob: '', gender: '', aadhaar_number: '' },
+    father: { name: '', dob: '', gender: '', aadhaar_number: '' },
+    mother: { name: '', dob: '', gender: '', aadhaar_number: '' },
+  });
+
   const [studentAadhaarImage, setStudentAadhaarImage] = useState(null);
   const [fatherAadhaarImage, setFatherAadhaarImage] = useState(null);
   const [motherAadhaarImage, setMotherAadhaarImage] = useState(null);
@@ -105,6 +119,52 @@ const Admissions = () => {
       case 'leaving': return 'Leaving certificate details extracted successfully!';
       default: return 'Details extracted successfully!';
     }
+  };
+
+  // Helper to get fields for a role
+  const getFieldsForRole = (role) => {
+    const baseFields = ['name', 'dob', 'gender', 'aadhaar_number'];
+    if (role === 'father') {
+      return baseFields.map(f => `father_${f}`);
+    }
+    if (role === 'mother') {
+      return baseFields.map(f => `mother_${f}`);
+    }
+    return baseFields;
+  };
+
+  // Toggle edit mode for a role
+  const toggleEditMode = (role) => {
+    const isEditing = editModes[role];
+    if (isEditing) {
+      // Save changes
+      const fields = getFieldsForRole(role);
+      const updates = {};
+      fields.forEach(field => {
+        const editKey = role === 'father' || role === 'mother' ? field.replace(`${role}_`, '') : field;
+        updates[field] = editValues[role][editKey];
+      });
+      setFormData(prev => ({ ...prev, ...updates }));
+      setEditModes(prev => ({ ...prev, [role]: false }));
+    } else {
+      // Load current values into temp edit state
+      const fields = getFieldsForRole(role);
+      const tempValues = {};
+      fields.forEach(field => {
+        const editKey = role === 'father' || role === 'mother' ? field.replace(`${role}_`, '') : field;
+        tempValues[editKey] = formData[field] || '';
+      });
+      setEditValues(prev => ({ ...prev, [role]: tempValues }));
+      setEditModes(prev => ({ ...prev, [role]: true }));
+    }
+  };
+
+  // Handle edit input change
+  const handleEditChange = (role, field, value) => {
+    setEditValues(prev => ({
+      ...prev,
+      [role]: { ...prev[role], [field]: value }
+    }));
   };
 
   useEffect(() => {
@@ -604,6 +664,59 @@ const Admissions = () => {
     }
   };
 
+  // Render editable preview for a role
+  const renderEditablePreview = (role, successState) => {
+    const isEditing = editModes[role];
+    const fields = getFieldsForRole(role);
+    const rolePrefix = role === 'student' ? '' : `${role}_`;
+    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+
+    return (
+      <div className="aadhaar-preview-card">
+        <div className="aadhaar-preview-header">
+          <h4>{isEditing ? 'Editing' : 'Extracted'} {roleLabel} Details</h4>
+          <button 
+            onClick={() => toggleEditMode(role)} 
+            className="edit-btn"
+            disabled={loading}
+          >
+            {isEditing ? 'Save' : 'Edit'}
+          </button>
+        </div>
+        <div className="aadhaar-preview-grid">
+          {fields.map(field => {
+            const displayField = field.replace(rolePrefix, '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const value = formData[field];
+            const editKey = field.replace(rolePrefix, '');
+            return (
+              <div key={field} className="aadhaar-preview-item">
+                <label>{displayField}</label>
+                {isEditing ? (
+                  <input
+                    type={field.includes('dob') ? 'date' : field.includes('gender') ? 'select' : 'text'}
+                    value={editValues[role][editKey] || ''}
+                    onChange={(e) => handleEditChange(role, editKey, e.target.value)}
+                    className="edit-input"
+                    list={field.includes('gender') ? 'gender-options' : undefined}
+                  />
+                ) : (
+                  <span>{value || '-'}</span>
+                )}
+              </div>
+            );
+          })}
+          {isEditing && (
+            <datalist id="gender-options">
+              <option value="Male" />
+              <option value="Female" />
+              <option value="Other" />
+            </datalist>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="admission-portal-container">
       <div className="admission-portal-wrapper">
@@ -684,19 +797,7 @@ const Admissions = () => {
                 </div>
               )}
 
-              {studentExtractionSuccess && (
-                <div className="aadhaar-preview-card">
-                  <div className="aadhaar-preview-header"><h4>Extracted Details</h4></div>
-                  <div className="aadhaar-preview-grid">
-                    {['name', 'dob', 'gender', 'aadhaar_number'].map(field => (
-                      <div key={field} className="aadhaar-preview-item">
-                        <label>{field.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</label>
-                        <span>{formData[field] || '-'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {studentExtractionSuccess && renderEditablePreview('student', studentExtractionSuccess)}
 
               {error && <div className="admission-message admission-error-message">{error}</div>}
               {successMessage && <div className="admission-message admission-success-message">{successMessage}</div>}
@@ -822,19 +923,7 @@ const Admissions = () => {
                 </div>
               )}
 
-              {fatherExtractionSuccess && (
-                <div className="aadhaar-preview-card">
-                  <div className="aadhaar-preview-header"><h4>Extracted</h4></div>
-                  <div className="aadhaar-preview-grid">
-                    {['father_name', 'father_dob', 'father_gender', 'father_aadhaar_number'].map(field => (
-                      <div key={field} className="aadhaar-preview-item">
-                        <label>{field.replace('father_', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</label>
-                        <span>{formData[field] || '-'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {fatherExtractionSuccess && renderEditablePreview('father', fatherExtractionSuccess)}
 
               {error && <div className="admission-message admission-error-message">{error}</div>}
               {successMessage && <div className="admission-message admission-success-message">{successMessage}</div>}
@@ -896,19 +985,7 @@ const Admissions = () => {
                 </div>
               )}
 
-              {motherExtractionSuccess && (
-                <div className="aadhaar-preview-card">
-                  <div className="aadhaar-preview-header"><h4>Extracted</h4></div>
-                  <div className="aadhaar-preview-grid">
-                    {['mother_name', 'mother_dob', 'mother_gender', 'mother_aadhaar_number'].map(field => (
-                      <div key={field} className="aadhaar-preview-item">
-                        <label>{field.replace('mother_', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</label>
-                        <span>{formData[field] || '-'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {motherExtractionSuccess && renderEditablePreview('mother', motherExtractionSuccess)}
 
               {error && <div className="admission-message admission-error-message">{error}</div>}
               {successMessage && <div className="admission-message admission-success-message">{successMessage}</div>}
