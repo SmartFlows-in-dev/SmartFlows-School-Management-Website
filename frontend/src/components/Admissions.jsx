@@ -21,6 +21,7 @@ const Admissions = () => {
     address: '',
     blood_group: '',
     phone: '',
+    parents_email: '',
     class_grade: '',
     school_name: '',
     last_class_attended: '',
@@ -229,6 +230,13 @@ const Admissions = () => {
     }));
     // Clear error on change
     if (error.includes(field)) setError('');
+  };
+
+  // Custom handler for phone: digits only, max 10
+  const handlePhoneChange = (e) => {
+    const value = e.target.value.replace(/\D/g, ''); // Only digits
+    const limitedValue = value.slice(0, 10); // Max 10 digits
+    setFormData(prev => ({ ...prev, phone: limitedValue }));
   };
 
   useEffect(() => {
@@ -610,7 +618,7 @@ const Admissions = () => {
   // --- Navigation ---
   const handleNextStep1 = () => studentExtractionSuccess ? (setCurrentStep(2), setError('')) : setError('Please upload Aadhaar and ensure all details are extracted.');
   const handleNextStep2 = () => {
-    if (!formData.address || !formData.blood_group || !formData.phone || !formData.class_grade) {
+    if (!formData.address || !formData.blood_group || !formData.phone || !formData.parents_email || !formData.class_grade) {
       setError('All fields with * are required.');
       return;
     }
@@ -931,7 +939,12 @@ const Admissions = () => {
 
                 <div className="admission-form-group">
                   <label htmlFor="phone" className="admission-form-label">Phone Number <span className="admission-required">*</span></label>
-                  <input type="tel" id="phone" name="phone" value={formData.phone} onChange={handleInputChange} required className="admission-form-input" placeholder="Enter phone" />
+                  <input type="tel" id="phone" name="phone" value={formData.phone} onChange={handlePhoneChange} required className="admission-form-input" placeholder="Enter 10-digit phone" maxLength="10" pattern="[0-9]{10}" />
+                </div>
+
+                <div className="admission-form-group">
+                  <label htmlFor="parents_email" className="admission-form-label">Parents' Email ID <span className="admission-required">*</span></label>
+                  <input type="email" id="parents_email" name="parents_email" value={formData.parents_email} onChange={handleInputChange} required className="admission-form-input" placeholder="Enter parents' email" />
                 </div>
 
                 <div className="admission-form-group">
