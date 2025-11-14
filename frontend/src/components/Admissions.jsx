@@ -853,7 +853,7 @@ const handleLeavingCertSubmit = async () => {
     !showIdCard && currentStep > 1 && (
       <button 
         onClick={handleBackStep} 
-        className="admission-btn back-btn"
+        className="admission-btn back-btn-two"
         disabled={loading}
       >
         ← Back
