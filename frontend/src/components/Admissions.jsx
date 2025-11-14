@@ -95,7 +95,9 @@ const Admissions = () => {
   // All URLs now conditional
   const API_URL = `${BASE_BACKEND_URL}/api/admissions/extract-aadhaar`;
   const LEAVING_CERT_API_URL = `${BASE_BACKEND_URL}/api/admissions/extract-leaving-certificate`;
-  const SUBMIT_URL = `${BASE_BACKEND_URL}/api/admissions/submit-to-sheet`;
+  // *** CHANGE THIS TO YOUR APPS SCRIPT WEB APP URL ***
+  // Example: const SUBMIT_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
+  const SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbyGU2GlIjWA6ult4XbNdtk1wQs42mf1iiK3DBcxBMfpcGLYJpJhPOOWc7Nil3iihFaN/exec'; // Paste your deployed URL here!
 
   // Debug log: Check which URL is being used
   console.log('Backend URLs in use:', { isDev, BASE_BACKEND_URL, API_URL, LEAVING_CERT_API_URL, SUBMIT_URL });
@@ -166,8 +168,8 @@ const Admissions = () => {
       errors.push('Aadhaar number must be exactly 12 digits.');
     }
 
-    // DOB: Valid date (browser handles, but check non-empty)
-    if (!values.dob) {
+    // DOB: Required, non-empty (now text input)
+    if (!values.dob || values.dob.trim() === '') {
       errors.push('Date of Birth is required.');
     }
 
@@ -425,7 +427,7 @@ const Admissions = () => {
       }
     }
     console.warn('Invalid DOB format from API:', dobString);
-    return '';
+    return dobString; // Fallback to raw string if invalid (e.g., just year)
   };
 
   // --- Updated Aadhaar Upload Handler with dataURL support ---
@@ -628,42 +630,66 @@ const Admissions = () => {
   const handleNextStep3 = () => fatherExtractionSuccess ? (setCurrentStep(4), setError('')) : setError("Please upload Father's Aadhaar and ensure details are extracted.");
   const handleNextStep4 = () => motherExtractionSuccess ? (setCurrentStep(5), setError('')) : setError("Please upload Mother's Aadhaar and ensure details are extracted.");
 
-  const handleLeavingCertSubmit = async () => {
-    if (!leavingCertExtractionSuccess) {
-      setError("Please upload Leaving Certificate and ensure details are extracted.");
-      return;
+const handleLeavingCertSubmit = async () => {
+  if (!leavingCertExtractionSuccess) {
+    setError("Please upload Leaving Certificate and ensure details are extracted.");
+    return;
+  }
+  if (!formData.address || !formData.blood_group || !formData.phone || !formData.class_grade || !formData.father_name || !formData.mother_name) {
+    setError('All required fields must be filled.');
+    return;
+  }
+
+  setLoading(true);
+  setError('');
+  setSuccessMessage('');
+
+  try {
+    // Filter to only send the required fields (as per your request)
+    const submitData = {
+      name: formData.name,
+      dob: formData.dob,
+      gender: formData.gender,
+      aadhaar_number: formData.aadhaar_number,
+      father_name: formData.father_name,
+      father_dob: formData.father_dob,
+      father_gender: formData.father_gender,
+      father_aadhaar_number: formData.father_aadhaar_number,
+      mother_name: formData.mother_name,
+      mother_dob: formData.mother_dob,
+      mother_gender: formData.mother_gender,
+      mother_aadhaar_number: formData.mother_aadhaar_number,
+      address: formData.address,
+      blood_group: formData.blood_group,
+      phone: formData.phone,
+      parents_email: formData.parents_email,
+      class_grade: formData.class_grade // Added for email completeness
+    };
+
+    // Use URLSearchParams for form-urlencoded (no Content-Type header to avoid preflight)
+    const params = new URLSearchParams(submitData);
+
+    const response = await fetch(SUBMIT_URL, {
+      method: 'POST',
+      body: params
+      // No headers: Browser defaults to application/x-www-form-urlencoded
+    });
+
+    if (!response.ok) throw new Error(`Submit Error: ${response.status}`);
+
+    const result = await response.json();
+    if (result.status === 'success') {  // Check 'status' like in your contact form
+      setShowIdCard(true);
+      setSuccessMessage('Application submitted! Data saved to records and confirmation email sent. ID Card generated below.');
+    } else {
+      throw new Error(result.error || 'Submission failed');
     }
-    if (!formData.address || !formData.blood_group || !formData.phone || !formData.class_grade || !formData.father_name || !formData.mother_name) {
-      setError('All required fields must be filled.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setSuccessMessage('');
-
-    try {
-      const response = await fetch(SUBMIT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      if (!response.ok) throw new Error(`Submit Error: ${response.status}`);
-
-      const result = await response.json();
-      if (result.success) {
-        setShowIdCard(true);
-        setSuccessMessage('Application submitted! Data saved to records and confirmation email sent. ID Card generated below.');
-      } else {
-        throw new Error(result.message || 'Submission failed');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Back navigation
   const handleBackStep = () => {
@@ -695,17 +721,32 @@ const Admissions = () => {
     setLoading(true);
     try {
       const element = idCardRef.current;
-      const canvas = await html2canvas(element, {
+
+      // Clone the element to ensure full rendering without parent constraints
+      const clone = element.cloneNode(true);
+      clone.id = 'id-card-clone'; // Unique ID to avoid conflicts
+      clone.style.position = 'absolute';
+      clone.style.left = '-9999px';
+      clone.style.top = '0';
+      clone.style.width = `${element.scrollWidth}px`;
+      clone.style.height = `${element.scrollHeight}px`;
+      clone.style.zIndex = '-1'; // Ensure it's out of view
+
+      // Append to body, capture, then remove
+      document.body.appendChild(clone);
+
+      const canvas = await html2canvas(clone, {
         scale: 2,
         useCORS: true,
         logging: false,
         allowTaint: true,
         backgroundColor: '#ffffff',
-        width: element.scrollWidth,
-        height: element.scrollHeight + 40,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight + 40
+        scrollX: 0,
+        scrollY: 0
       });
+
+      // Clean up the clone
+      document.body.removeChild(clone);
 
       const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF('landscape', 'mm', 'a4');
@@ -787,13 +828,13 @@ const Admissions = () => {
                     </select>
                   ) : (
                     <input
-                      type={isDob ? 'date' : isAadhaar ? 'text' : 'text'}
+                      type={isDob ? 'text' : isAadhaar ? 'text' : 'text'}
                       value={editValues[role][editKey] || ''}
                       onChange={(e) => handleEditChange(role, editKey, e.target.value)}
                       className="edit-input"
                       pattern={isAadhaar ? "\\d{4} \\d{4} \\d{4}" : undefined}
                       maxLength={isAadhaar ? 14 : undefined}
-                      placeholder={isAadhaar ? "e.g., 4828 8429 4931" : undefined}
+                      placeholder={isDob ? "DD/MM/YYYY (e.g., 15/05/2010)" : isAadhaar ? "e.g., 4828 8429 4931" : undefined}
                     />
                   )
                 ) : (
@@ -807,9 +848,9 @@ const Admissions = () => {
     );
   };
 
-  // Render back button for steps > 1
+  // Render back button for steps > 1 (hide when showIdCard)
   const renderBackButton = () => (
-    currentStep > 1 && (
+    !showIdCard && currentStep > 1 && (
       <button 
         onClick={handleBackStep} 
         className="admission-btn back-btn"
@@ -1210,12 +1251,13 @@ const Admissions = () => {
 
               <div ref={idCardRef} className="student-id-card">
                 <div className="student-id-card-header">
-                  <div className="student-bis-school-logo">
-                    <div className="student-id-logo-placeholder">School</div>
+                  <div className="student-id-school-logo">
+                    <div className="student-id-logo-placeholder">SFA</div>
                   </div>
                   <div className="student-id-school-info">
                     <h3>SmartFlows Academy</h3>
-                    <p>Empowering Future Leaders</p>
+                    <p>Affiliated to CBSE | Est. 2020</p>
+                    <p>123 School Lane, Education City, Delhi - 110001</p>
                   </div>
                 </div>
 
@@ -1223,41 +1265,68 @@ const Admissions = () => {
                   <div className="student-id-photo-section">
                     <div className="student-id-photo-container">
                       <img src={studentPhoto || 'https://via.placeholder.com/120x150?text=Photo'} alt="Student" className="student-id-photo" />
-                      <div className="student-id-badge">STUDENT</div>
+                      <div className="student-id-badge">STUDENT ID</div>
                     </div>
+                    <div className="student-id-emergency">Emergency: {formData.phone || 'N/A'}</div>
                   </div>
 
                   <div className="student-id-info-section">
-                    <div className="student-id-info-container">
-                      <div className="student-id-info-row"><span className="student-id-info-label">Name:</span><span className="student-id-info-value">{formData.name}</span></div>
-                      <div className="student-id-info-row"><span className="student-id-info-label">DOB:</span><span className="student-id-info-value">{formData.dob}</span></div>
-                      <div className="student-id-info-row"><span className="student-id-info-label">Gender:</span><span className="student-id-info-value">{formData.gender}</span></div>
-                      <div className="student-id-info-row"><span className="student-id-info-label">Aadhaar:</span><span className="student-id-info-value">{formatDisplayAadhaar(formData.aadhaar_number)}</span></div>
-                      <div className="student-id-info-row"><span className="student-id-info-label">Father:</span><span className="student-id-info-value">{formData.father_name}</span></div>
-                      <div className="student-id-info-row"><span className="student-id-info-label">Prev. School:</span><span className="student-id-info-value">{formData.school_name}</span></div>
-                      <div className="student-id-info-row"><span className="student-id-info-label">Last Class:</span><span className="student-id-info-value">{formData.last_class_attended}</span></div>
-                      <div className="student-id-info-row"><span className="student-id-info-label">Blood:</span><span className="student-id-info-value student-id-blood-group">{formData.blood_group}</span></div>
-                      <div className="student-id-info-row"><span className="student-id-info-label">Class:</span><span className="student-id-info-value">{formData.class_grade}</span></div>
-                      {/* Add more ID card rows here if needed, e.g.: */}
-                      {/* <div className="student-id-info-row"><span className="student-id-info-label">Nationality:</span><span className="student-id-info-value">{formData.nationality}</span></div> */}
+                    <div className="student-id-info-header">
+                      <h4>{formData.name || 'Student Name'}</h4>
+                      <div className="student-id-class">{formData.class_grade || 'Class/Grade'}</div>
+                    </div>
+                    <div className="student-id-info-grid">
+                      <div className="student-id-info-row">
+                        <span className="student-id-info-label">Admission No:</span>
+                        <span className="student-id-info-value">{formData.admission_number || formData.aadhaar_number?.slice(-4) || 'N/A'}</span>
+                      </div>
+                      <div className="student-id-info-row">
+                        <span className="student-id-info-label">DOB:</span>
+                        <span className="student-id-info-value">{formData.dob || 'DD/MM/YYYY'}</span>
+                      </div>
+                      <div className="student-id-info-row">
+                        <span className="student-id-info-label">Gender:</span>
+                        <span className="student-id-info-value">{formData.gender || 'N/A'}</span>
+                      </div>
+                      <div className="student-id-info-row">
+                        <span className="student-id-info-label">Blood Group:</span>
+                        <span className="student-id-info-value student-id-blood-group">{formData.blood_group || 'N/A'}</span>
+                      </div>
+                      <div className="student-id-info-row">
+                        <span className="student-id-info-label">Aadhaar:</span>
+                        <span className="student-id-info-value">{formatDisplayAadhaar(formData.aadhaar_number) || 'N/A'}</span>
+                      </div>
+                      <div className="student-id-info-row">
+                        <span className="student-id-info-label">Father:</span>
+                        <span className="student-id-info-value">{formData.father_name || 'N/A'}</span>
+                      </div>
+                      <div className="student-id-info-row">
+                        <span className="student-id-info-label">Mother:</span>
+                        <span className="student-id-info-value">{formData.mother_name || 'N/A'}</span>
+                      </div>
+                   
+                      <div className="student-id-info-row">
+                        <span className="student-id-info-label">Last Class:</span>
+                        <span className="student-id-info-value">{formData.last_class_attended || 'N/A'}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="student-id-card-footer">
                   <div className="student-id-validity">
-                    <span>Valid until: Dec 31, 2025</span>
-                    <span>ID: {formData.aadhaar_number?.slice(-4) || 'N/A'}</span>
+                    <span>Valid from: Jan 1, 2025 | Valid until: Dec 31, 2026</span>
+                    <div className="student-id-qr-placeholder">QR Code</div>
                   </div>
                   <div className="student-id-signature-section">
                     <div className="student-id-signature-line"></div>
-                    <span>Authorized Signature</span>
+                    <span>Principal's Signature</span>
+                    <span className="student-id-date">Issue Date: {new Date().toLocaleDateString('en-IN')}</span>
                   </div>
                 </div>
               </div>
 
               <div className="admission-btn-group">
-                {renderBackButton()}
                 <button onClick={downloadIdCard} className="admission-btn admission-download-btn" disabled={loading}>
                   Download ID Card (PDF)
                 </button>
